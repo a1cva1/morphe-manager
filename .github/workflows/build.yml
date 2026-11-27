@@ -4,10 +4,19 @@ name: Build Morphe Manager
 on:
   workflow_dispatch:
 
+# The default GITHUB_TOKEN needs packages:read to fetch
+# morphe-patcher from GitHub Packages (see settings.gradle.kts).
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   build:
     name: Build release APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
 
     steps:
       - name: Checkout
@@ -31,7 +40,21 @@ jobs:
       # No app/keystore.jks exists in the fork, and -PsignAsDebug is passed,
       # so the release build is signed with the debug key (see
       # app/build.gradle.kts) and the APK is installable as-is.
+      #
+      # GITHUB_TOKEN is REQUIRED here, not optional: settings.gradle.kts
+      # reads morphe-patcher from https://maven.pkg.github.com/MorpheApp/registry
+      # with credentials from GITHUB_ACTOR / GITHUB_TOKEN, falling back to
+      # "anonymous" with an empty password when unset — and GitHub Packages
+      # rejects anonymous reads for public packages (upstream's own
+      # build_pull_request.yml says exactly this and passes the token to
+      # every Gradle step). Without it the build fails resolving
+      # app.morphe:morphe-patcher before compiling anything.
+      # This uses the workflow's own automatic token — no personal token,
+      # no secret to create, nothing to paste in chat.
       - name: Build release APK
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          _JAVA_OPTIONS: "-Djava.awt.headless=true"
         run: |
           chmod +x gradlew
           ./gradlew assembleRelease -PsignAsDebug --no-daemon --stacktrace
