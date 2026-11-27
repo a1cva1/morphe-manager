@@ -1,0 +1,45 @@
+name: Build Morphe Manager
+
+# Manual run only — never on push.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Morphe's own release workflow installs three JDKs:
+      # 17 and 25 are toolchains that build the embedded JVMs,
+      # 21 (listed last) is the default that runs Gradle.
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: |
+            17
+            25
+            21
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # No app/keystore.jks exists in the fork, and -PsignAsDebug is passed,
+      # so the release build is signed with the debug key (see
+      # app/build.gradle.kts) and the APK is installable as-is.
+      - name: Build release APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease -PsignAsDebug --no-daemon --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: morphe-manager-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          
